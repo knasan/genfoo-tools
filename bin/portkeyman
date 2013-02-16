@@ -6,7 +6,7 @@ require 'tempfile'
 require 'tmpdir'
 require 'fileutils'
 
-VERSION="0.0.2"
+VERSION="0.0.3"
 TMPFILE = Tempfile.new("/tmp/packages.keyword_#{File.basename($0)}")
 
 lc_messages = ENV["LC_MESSAGES"]
@@ -87,9 +87,9 @@ def main
   sample = (
     "Examples:\n"+
     "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/package.keyword \t# Running as normal user log in /tmp/#{tool}.log\n"+
-    "  #{tool} -k /etc/portage/package.keyword -o f \t\t\t# save output as file\n"+
-    "  #{tool} -k /etc/portage/package.keyword -o d \t\t\t# save output as directory (separate category)\n"+
-    "  #{tool} -k /etc/portage/package.keyword -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
+    "  #{tool} -k /etc/portage/package.keywords -o f \t\t\t# save output as file\n"+
+    "  #{tool} -k /etc/portage/package.keywords -o d \t\t\t# save output as directory (separate category)\n"+
+    "  #{tool} -k /etc/portage/package.keywords -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
     "  #{tool} or #{tool} --help \t\t\t\t\t# show this help"
   )
 
@@ -116,7 +116,7 @@ def main
 
   if not File.exists?(options[:keywordfiledir])
     error_msg = "failure: #{options[:keywordfiledir]} no file or directory"
-    log.error(error_msg)
+    @log.error(error_msg)
     puts error_msg
     puts op
     exit
@@ -184,9 +184,9 @@ def pkgscan(_options)
 
   # save as file and exit
   if not _options[:output_as] == "dir"
-    newfile = "/tmp/package.keyword.new"
+    newfile = "/tmp/package.keywords.new"
     FileUtils.cp(TMPFILE, newfile)
-    info_msg = "new packages.keyword is saved as File to: #{newfile}"
+    info_msg = "new packages.keywords is saved as File to: #{newfile}"
     @log.info("#{info_msg}")
     puts info_msg
     exit
@@ -196,12 +196,12 @@ def pkgscan(_options)
   if _options[:output_as] == "dir"
     result = migrate_to_dir
     if not result
-      error_msg = "unkown error, package.keyword not saved"
+      error_msg = "unkown error, package.keywords not saved"
       @log.error("#{error_msg}")
       puts error_msg
       exit
     end
-    info_msg = "new package.keyword is saved as directory to: /tmp/package.keyword"
+    info_msg = "new package.keyword is saved as directory to: /tmp/package.keywords"
     @log.info("#{info_msg}")
     puts info_msg
     exit
@@ -257,9 +257,8 @@ end
 def migrate_to_dir
   # create a tmp dir, is exists delete it
   tmpdir = Dir.mktmpdir(File.basename($0))
-  mydir = File.join(tmpdir, "package.keyword")
+  mydir = File.join(tmpdir, "package.keywords")
   FileUtils.mkdir(mydir)
-  FileUtils.rm_f("/tmp/package.keyword")
 
   File.readlines(TMPFILE).each do |line|
     info, keyword = line.split(/ /)
@@ -268,13 +267,12 @@ def migrate_to_dir
     catname = info.split(/=/)[1].to_s.split(/\//)[0]
     catname = info.split(/\//)[0] if catname.nil?
 
-    fdname = File.join(mydir, catname)
-
-    FileUtils.mkdir_p(fdname)
-    File.new("#{fdname}/#{catname}","a").syswrite(line)
+    File.new("#{mydir}/#{catname}","a").syswrite(line)
   end
 
-  FileUtils.cp_r(mydir, "/tmp/package.keyword")
+  FileUtils.rm_rf("/tmp/package.keywords")
+
+  FileUtils.cp_r(mydir, "/tmp/package.keywords")
 
   FileUtils.rm_r(tmpdir)
   return true

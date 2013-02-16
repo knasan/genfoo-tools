@@ -6,7 +6,7 @@ require 'tempfile'
 require 'tmpdir'
 require 'fileutils'
 
-VERSION="0.0.1"
+VERSION="0.0.2"
 TMPFILE = Tempfile.new("/tmp/packages.keyword_#{File.basename($0)}")
 
 lc_messages = ENV["LC_MESSAGES"]
@@ -266,6 +266,7 @@ def migrate_to_dir
     keyword = keyword.strip
     info = info.strip
     catname = info.split(/=/)[1].to_s.split(/\//)[0]
+    catname = info.split(/\//)[0] if catname.nil?
 
     fdname = File.join(mydir, catname)
 

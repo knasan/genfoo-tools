@@ -6,7 +6,7 @@ require 'tempfile'
 require 'tmpdir'
 require 'fileutils'
 
-VERSION="0.0.3"
+VERSION="0.0.4"
 TMPFILE = Tempfile.new("/tmp/packages.keyword_#{File.basename($0)}")
 
 lc_messages = ENV["LC_MESSAGES"]
@@ -18,8 +18,6 @@ def main
   op.banner = "#{File.basename($0)} [OPTIONS]"
   op.separator("")
 
-  # default log to /var/log/portkeyman.log
-
   options = {
     :keywordfiledir => false,
     :pkg_ver_mig => false,
@@ -30,16 +28,14 @@ def main
     :verbose => false
   }
 
-  # changelog
-  # 5 add delete or clean
-  # 6. configfile /etc/portkeyman.conf
+  # set default log, for user /tmp - for root /var/log
+  if Process.uid == 0
+    logfile = "/var/log/#{File.basename($0)}.log"
+  else
+    logfile = "/tmp/#{File.basename($0)}.log"
+  end
 
-  # this variables not in used
-  # show portage and overlays
-  #emerge_var = `emerge --info`.split(/\n/)
-  #portage, portoverlays = emerge_var.grep(/PORTDIR/)
-
-  # default ist nothing do due
+  # default ist nothing to due
   op.on("-d","--drop","remove not installed packages from keywords") do
     options[:drop] = true
   end
@@ -50,7 +46,8 @@ def main
   end
 
   # set logfile or use default
-  op.on("-l LOGFILE","--logfile LOGFILE", "set logfile, default: /var/log/#{File.basename($0)}.log") do |args|
+  user = `echo $USER`.strip
+  op.on("-l LOGFILE","--logfile LOGFILE", "set logfile, default for user: #{user}, logfile: #{logfile}") do |args|
     options[:logfile] = args
   end
 
@@ -111,7 +108,7 @@ def main
   if options[:logfile]
     @log = Logger.new(options[:logfile], 'daily')
   else
-    @log = Logger.new("/var/log/#{File.basename($0)}.log", 'daily')
+    @log = Logger.new(logfile, 'daily')
   end
 
   if not File.exists?(options[:keywordfiledir])
@@ -123,11 +120,9 @@ def main
   else
     pkgscan(options)
   end
-
 end
 
 def pkgscan(_options)
-
   installed_pkg_versions = {}
   installed_pkg_noversions = {}
   not_installed_pkg = {}
@@ -209,7 +204,6 @@ def pkgscan(_options)
 end
 
 def migrate_pkg(_installed_pkg_noversions, _installed_pkg_versions, _not_installed_pkg, _options)
-
   migrate_list = {}
   # migrate all to >=categorie/name-version arch
 
@@ -255,26 +249,33 @@ def migrate_pkg(_installed_pkg_noversions, _installed_pkg_versions, _not_install
 end
 
 def migrate_to_dir
-  # create a tmp dir, is exists delete it
-  tmpdir = Dir.mktmpdir(File.basename($0))
-  mydir = File.join(tmpdir, "package.keywords")
-  FileUtils.mkdir(mydir)
+  begin
+    # create a tmp dir, is exists delete it
+    tmpdir = Dir.mktmpdir(File.basename($0))
+    mydir = File.join(tmpdir, "package.keywords")
+    FileUtils.mkdir(mydir)
 
-  File.readlines(TMPFILE).each do |line|
-    info, keyword = line.split(/ /)
-    keyword = keyword.strip
-    info = info.strip
-    catname = info.split(/=/)[1].to_s.split(/\//)[0]
-    catname = info.split(/\//)[0] if catname.nil?
+    File.readlines(TMPFILE).each do |line|
+      info, keyword = line.split(/ /)
+      keyword = keyword.strip
+      info = info.strip
+      catname = info.split(/=/)[1].to_s.split(/\//)[0]
+      catname = info.split(/\//)[0] if catname.nil?
 
-    File.new("#{mydir}/#{catname}","a").syswrite(line)
+      File.new("#{mydir}/#{catname}","a").syswrite(line)
+    end
+
+    FileUtils.rm_rf("/tmp/package.keywords")
+
+    FileUtils.cp_r(mydir, "/tmp/package.keywords")
+
+    FileUtils.rm_r(tmpdir)
+  rescue => exc
+    @log.error(exc)
+    puts exc
+    puts "saved to: #{mydir}"
+    exit
   end
-
-  FileUtils.rm_rf("/tmp/package.keywords")
-
-  FileUtils.cp_r(mydir, "/tmp/package.keywords")
-
-  FileUtils.rm_r(tmpdir)
   return true
 end
 

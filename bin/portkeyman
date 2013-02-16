@@ -83,7 +83,7 @@ def main
   tool = File.basename($0)
   sample = (
     "Examples:\n"+
-    "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/package.keyword \t# Running as normal user log in /tmp/#{tool}.log\n"+
+    "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/package.keyword \t# set lofgile to /tmp/#{tool}.log\n"+
     "  #{tool} -k /etc/portage/package.keywords -o f \t\t\t# save output as file\n"+
     "  #{tool} -k /etc/portage/package.keywords -o d \t\t\t# save output as directory (separate category)\n"+
     "  #{tool} -k /etc/portage/package.keywords -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+

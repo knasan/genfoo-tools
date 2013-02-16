@@ -1,0 +1,268 @@
+#!/usr/bin/ruby -w
+
+require 'optparse'
+require 'logger'
+require 'tempfile'
+require 'tmpdir'
+require 'fileutils'
+
+VERSION="0.0.1"
+TMPFILE = Tempfile.new("/tmp/packages.keyword_#{File.basename($0)}")
+
+lc_messages = ENV["LC_MESSAGES"]
+ENV["LC_MASSAGES"] = "en_US"
+
+def main
+  op = OptionParser.new
+  op.summary_indent = ""
+  op.banner = "#{File.basename($0)} [OPTIONS]"
+  op.separator("")
+
+  # default log to /var/log/portkeyman.log
+
+  options = {
+    :keywordfiledir => false,
+    :pkg_ver_mig => false,
+    :output_as => "file",
+    :logfile => false,
+    :drop => false,
+    :version => false,
+    :verbose => false
+  }
+
+  # changelog
+  # 5 add delete or clean
+  # 6. configfile /etc/portkeyman.conf
+
+  # this variables not in used
+  # show portage and overlays
+  #emerge_var = `emerge --info`.split(/\n/)
+  #portage, portoverlays = emerge_var.grep(/PORTDIR/)
+
+  # default ist nothing do due
+  op.on("-d","--drop","remove not installed packages from keywords") do
+    options[:drop] = true
+  end
+
+  # write bash_completion for this
+  op.on("-k FILE_DIR","--keyword FILE_DIR", "set keyword file or directory") do |args|
+    options[:keywordfiledir] = args
+  end
+
+  # set logfile or use default
+  op.on("-l LOGFILE","--logfile LOGFILE", "set logfile, default: /var/log/#{File.basename($0)}.log") do |args|
+    options[:logfile] = args
+  end
+
+  # migrate_noversion Filelist
+  op.on("-p","--pkg-mig","migrate no versions packages to installed packages") do
+    options[:pkg_ver_mig] = true
+  end
+
+  op.on("-o [FILE|DIR]","--output [FILE|DIR]","output as file or directory, default: #{options[:output_as]}") do |args|
+    arg = args.downcase
+
+    if arg == "file" or arg == "f"
+      options[:output_as] = "file"
+    elsif arg == "dir" or arg == "f" or arg == "d"
+      options[:output_as] = "dir"
+    else
+      puts "output_as file [f | file] or as directory [d | dir]"
+      puts op
+      exit
+    end
+  end
+
+  op.on("-v","--verbose","verbose messages") do |arg|
+    options[:verbose] = true
+  end
+
+  op.on("-V","--version","print version and exit") do
+    puts "#{File.basename($0)} VERSION: #{VERSION}"
+    exit
+  end
+
+  begin
+    op.parse!
+    if not options[:keywordfiledir]
+      puts op
+      exit
+    end
+  rescue => exc
+    puts exc
+    puts "\n#{op}"
+  end
+
+  # set logfile for more output informations
+  if options[:logfile]
+    @log = Logger.new(options[:logfile], 'daily')
+  else
+    @log = Logger.new("/var/log/#{File.basename($0)}.log", 'daily')
+  end
+
+  if not File.exists?(options[:keywordfiledir])
+    error_msg = "failure: #{options[:keywordfiledir]} no file or directory"
+    log.error(error_msg)
+    puts error_msg
+    puts op
+    exit
+  else
+    pkgscan(options)
+  end
+
+end
+
+def pkgscan(_options)
+
+  installed_pkg_versions = {}
+  installed_pkg_noversions = {}
+  not_installed_pkg = {}
+
+  # file function
+  if not File.directory?(_options[:keywordfiledir])
+    File.readlines(_options[:keywordfiledir]).each do |line|
+      pkg = line.split(/ /)[0].strip
+      keyword = line.split(/ /)[1].strip
+
+      if line.start_with?(">")
+        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+        next
+      elsif line.start_with?("=")
+        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+        next
+      else
+        pkg_full = `qlist -ICv #{pkg} `.strip
+        if pkg_full.empty?
+          not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword}
+          next
+        end
+        installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword}
+      end
+    end
+  end
+
+  # directory function
+  if File.directory?(_options[:keywordfiledir])
+    Dir[File.join(_options[:keywordfiledir], "*")].each do |files|
+      File.readlines(files).each do |line|
+        pkg = line.split(/ /)[0].strip
+        keyword = line.split(/ /)[1].strip
+
+        if line.start_with?(">")
+          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+          next
+        elsif line.start_with?("=")
+          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+          next
+        else
+          pkg_full = `qlist -ICv #{pkg} `.strip
+          if pkg_full.empty?
+            not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword}
+            next
+          end
+          installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword}
+        end
+      end
+    end
+  end
+
+  migrate_pkg(installed_pkg_noversions, installed_pkg_versions, not_installed_pkg, _options)
+
+  # save as file and exit
+  if not _options[:output_as] == "dir"
+    newfile = "/tmp/package.keyword.new"
+    FileUtils.cp(TMPFILE, newfile)
+    info_msg = "new packages.keyword is saved as File to: #{newfile}"
+    @log.info("#{info_msg}")
+    puts info_msg
+    exit
+  end
+
+  # save as directory
+  if _options[:output_as] == "dir"
+    result = migrate_to_dir
+    if not result
+      error_msg = "unkown error, package.keyword not saved"
+      @log.error("#{error_msg}")
+      puts error_msg
+      exit
+    end
+    info_msg = "new package.keyword is saved as directory to: /tmp/package.keyword"
+    @log.info("#{info_msg}")
+    puts info_msg
+    exit
+  end
+end
+
+def migrate_pkg(_installed_pkg_noversions, _installed_pkg_versions, _not_installed_pkg, _options)
+
+  migrate_list = {}
+  # migrate all to >=categorie/name-version arch
+
+  _installed_pkg_noversions.each_pair do |pkg,info|
+    if _options[:pkg_ver_mig]
+      info_msg = "Migrate #{pkg} to #{info[:full_name]} #{info[:keyword]}"
+      @log.info("#{info_msg}")
+      puts info_msg if _options[:verbose]
+      migrate_list[pkg] = {:pkg => ">=#{pkg}", :keyword => info[:keyword]}
+    else
+      warning_msg = "don't migrate package #{info[:pkg]}. Installed version: #{pkg} used keyword: #{info[:keyword]}"
+      @log.warn("#{warning_msg}")
+      puts warning_msg if _options[:verbose]
+      migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
+    end
+  end
+
+  # not installed list ony when not options[:drop] true
+  if not _options[:drop]
+    _not_installed_pkg.each_pair do |pkg,info|
+      warning_msg ="Ignore not installed package: #{pkg}"
+      @log.warn("#{warning_msg}")
+      puts warning_msg if _options[:verbose]
+      migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
+    end
+  elsif _options[:drop]
+    _not_installed_pkg.each_pair do |pkg,info|
+      warning_msg = "Drop not installed package: #{pkg}"
+      @log.warn("#{warning_msg}")
+      puts warning_msg if _options[:verbose]
+    end
+  end
+
+  _installed_pkg_versions.each_pair do |pkg,info|
+    migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
+  end
+
+  # write Tempfile
+  migrate_list.each_pair do |pkg,info|
+    name = "#{info[:pkg]} #{info[:keyword]}"
+    TMPFILE.syswrite(name + "\n")
+  end
+end
+
+def migrate_to_dir
+  # create a tmp dir, is exists delete it
+  tmpdir = Dir.mktmpdir(File.basename($0))
+  mydir = File.join(tmpdir, "package.keyword")
+  FileUtils.mkdir(mydir)
+  FileUtils.rm_f("/tmp/package.keyword")
+
+  File.readlines(TMPFILE).each do |line|
+    info, keyword = line.split(/ /)
+    keyword = keyword.strip
+    info = info.strip
+    catname = info.split(/=/)[1].to_s.split(/\//)[0]
+
+    fdname = File.join(mydir, catname)
+
+    FileUtils.mkdir_p(fdname)
+    File.new("#{fdname}/#{catname}","a").syswrite(line)
+  end
+
+  FileUtils.cp_r(mydir, "/tmp/package.keyword")
+
+  FileUtils.rm_r(tmpdir)
+  return true
+end
+
+main

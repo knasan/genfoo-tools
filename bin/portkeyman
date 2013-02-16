@@ -82,6 +82,20 @@ def main
     exit
   end
 
+  op.separator("")
+  tool = File.basename($0)
+  sample = (
+    "Examples:\n"+
+    "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/package.keyword \t# Running as normal user log in /tmp/#{tool}.log\n"+
+    "  #{tool} -k /etc/portage/package.keyword -o f \t\t\t# save output as file\n"+
+    "  #{tool} -k /etc/portage/package.keyword -o d \t\t\t# save output as directory (separate category)\n"+
+    "  #{tool} -k /etc/portage/package.keyword -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
+    "  #{tool} or #{tool} --help \t\t\t\t\t# show this help"
+  )
+
+  sample.split("\n").each { |line| op.separator line }
+  op.separator("")
+
   begin
     op.parse!
     if not options[:keywordfiledir]

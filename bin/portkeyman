@@ -18,13 +18,16 @@ def main
   op.banner = "#{File.basename($0)} [OPTIONS]"
   op.separator("")
 
+  portage_keywords = "/etc/portage/package.keywords"
+
   options = {
-    :keywordfiledir => false,
+    :keywordfiledir => portage_keywords,
     :pkg_ver_mig => false,
     :output_as => "file",
     :logfile => false,
     :drop => false,
     :version => false,
+    :opt => false,
     :verbose => false
   }
 
@@ -37,26 +40,31 @@ def main
 
   # default ist nothing to due
   op.on("-d","--drop","remove not installed packages from keywords") do
+    options[:opt] = true
     options[:drop] = true
   end
 
   # write bash_completion for this
-  op.on("-k FILE_DIR","--keyword FILE_DIR", "set keyword file or directory") do |args|
+  op.on("-k FILE_DIR","--keyword FILE_DIR", "set keyword file or directory, default: #{options[:keywordfiledir]}") do |args|
+    options[:opt] = true
     options[:keywordfiledir] = args
   end
 
   # set logfile or use default
   user = `echo $USER`.strip
   op.on("-l LOGFILE","--logfile LOGFILE", "set logfile, default for user: #{user}, logfile: #{logfile}") do |args|
+    options[:opt] = true
     options[:logfile] = args
   end
 
   # migrate_noversion Filelist
   op.on("-p","--pkg-mig","migrate no versions packages to installed packages") do
+    options[:opt] = true
     options[:pkg_ver_mig] = true
   end
 
   op.on("-o [FILE|DIR]","--output [FILE|DIR]","output as file or directory, default: #{options[:output_as]}") do |args|
+    options[:opt] = true
     arg = args.downcase
 
     if arg == "file" or arg == "f"
@@ -71,10 +79,12 @@ def main
   end
 
   op.on("-v","--verbose","verbose messages") do |arg|
+    options[:opt] = true
     options[:verbose] = true
   end
 
   op.on("-V","--version","print version and exit") do
+    options[:opt] = true
     puts "#{File.basename($0)} VERSION: #{VERSION}"
     exit
   end
@@ -95,7 +105,7 @@ def main
 
   begin
     op.parse!
-    if not options[:keywordfiledir]
+    if not options[:opt]
       puts op
       exit
     end
@@ -121,11 +131,25 @@ def main
     pkgscan(options)
   end
 end
-
+def show_comment(_line, _comment_tmp_file)
+  if _line.start_with?("#")
+    comment = _line
+    comment = _line.split(/#/)[1]
+    comment = comment.strip unless comment.nil?
+    _comment_tmp_file.syswrite(comment)
+  else
+    comment = _line.split(/#/)[1]
+    comment = comment.strip unless comment.nil?
+  end
+  comment
+end
 def pkgscan(_options)
   installed_pkg_versions = {}
   installed_pkg_noversions = {}
   not_installed_pkg = {}
+
+  comment_tmp_file = "/tmp/comments"
+  File.delete(comment_tmp_file) if File.file?(comment_tmp_file)
 
   # file function
   if not File.directory?(_options[:keywordfiledir])
@@ -133,19 +157,36 @@ def pkgscan(_options)
       pkg = line.split(/ /)[0].strip
       keyword = line.split(/ /)[1].strip
 
+      tmp_file = File.new(comment_tmp_file,"a")
+      comment = show_comment(line, tmp_file)
+
+      if comment.nil?
+        File.readlines(comment_tmp_file).each do |comline|
+          next if comline.nil?
+          comment = comline
+        end
+        begin
+          File.delete(comment_tmp_file)
+        rescue => exc
+          @log.fatal(exc)
+        end
+      end
+
+      comment = show_comment(line, comment_tmp_file)
+
       if line.start_with?(">")
-        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
         next
       elsif line.start_with?("=")
-        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
         next
       else
         pkg_full = `qlist -ICv #{pkg} `.strip
         if pkg_full.empty?
-          not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword}
+          not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
           next
         end
-        installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword}
+        installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword, :commnet => comment}
       end
     end
   end
@@ -157,19 +198,34 @@ def pkgscan(_options)
         pkg = line.split(/ /)[0].strip
         keyword = line.split(/ /)[1].strip
 
+        tmp_file = File.new(comment_tmp_file,"a")
+        comment = show_comment(line, tmp_file)
+
+        if comment.nil?
+          File.readlines(comment_tmp_file).each do |comline|
+            next if comline.nil?
+            comment = comline
+          end
+          begin
+            File.delete(comment_tmp_file)
+          rescue => exc
+            @log.fatal(exc)
+          end
+        end
+
         if line.start_with?(">")
-          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
           next
         elsif line.start_with?("=")
-          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword}
+          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
           next
         else
           pkg_full = `qlist -ICv #{pkg} `.strip
           if pkg_full.empty?
-            not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword}
+            not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
             next
           end
-          installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword}
+          installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword, :comment => comment}
         end
       end
     end
@@ -209,41 +265,71 @@ def migrate_pkg(_installed_pkg_noversions, _installed_pkg_versions, _not_install
 
   _installed_pkg_noversions.each_pair do |pkg,info|
     if _options[:pkg_ver_mig]
-      info_msg = "Migrate #{pkg} to #{info[:full_name]} #{info[:keyword]}"
+      if info[:comment].nil?
+        info_msg = "Migrate #{pkg} to #{info[:full_name]} #{info[:keyword]}"
+      else
+        info_msg = "Migrate #{pkg} to #{info[:full_name]} #{info[:keyword]} #{info[:comment]}"
+      end
       @log.info("#{info_msg}")
       puts info_msg if _options[:verbose]
-      migrate_list[pkg] = {:pkg => ">=#{pkg}", :keyword => info[:keyword]}
+      if info[:comment].nil?
+        migrate_list[pkg] = {:pkg => ">=#{pkg}", :keyword => info[:keyword]}
+      else
+        migrate_list[pkg] = {:pkg => ">=#{pkg}", :keyword => info[:keyword], :comment => "# #{info[:comment]}"}
+      end
     else
-      warning_msg = "don't migrate package #{info[:pkg]}. Installed version: #{pkg} used keyword: #{info[:keyword]}"
+      if info[:comment].nil?
+        warning_msg = "don't migrate package #{info[:pkg]}. Installed version: #{pkg} used keyword: #{info[:keyword]}"
+        migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
+      else
+        warning_msg = "don't migrate package #{info[:pkg]}. Installed version: #{pkg} used keyword: #{info[:keyword]} and comment: #{info[:comment]}"
+        migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword], :comment => "# #{info[:comment]}"}
+      end
       @log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
-      migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
     end
   end
 
   # not installed list ony when not options[:drop] true
   if not _options[:drop]
     _not_installed_pkg.each_pair do |pkg,info|
-      warning_msg ="Ignore not installed package: #{pkg}"
+      if info[:comment].nil?
+        warning_msg ="Ignore not installed package: #{pkg}"
+        migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
+      else
+        warning_msg ="Ignore not installed package: #{pkg} comment: #{info[:comment]}"
+        migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword], :comment => "# #{info[:comment]}"}
+      end
       @log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
-      migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
     end
   elsif _options[:drop]
     _not_installed_pkg.each_pair do |pkg,info|
-      warning_msg = "Drop not installed package: #{pkg}"
+      if info[:comment].nil?
+        warning_msg = "Drop not installed package: #{pkg}"
+      else
+        warning_msg = "Drop not installed package: #{pkg} comment: #{info[:comment]}"
+      end
       @log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
     end
   end
 
   _installed_pkg_versions.each_pair do |pkg,info|
-    migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
+    if info[:comment].nil?
+      migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword]}
+    else
+      migrate_list[pkg] = {:pkg => info[:pkg], :keyword => info[:keyword], :comment => "# #{info[:comment]}"}
+    end
   end
 
   # write Tempfile
   migrate_list.each_pair do |pkg,info|
-    name = "#{info[:pkg]} #{info[:keyword]}"
+    if info[:comment].nil?
+      name = "#{info[:pkg]} #{info[:keyword]}"
+    else
+      name = "#{info[:pkg]} #{info[:keyword]} #{info[:comment]}"
+    end
     TMPFILE.syswrite(name + "\n")
   end
 end

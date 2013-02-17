@@ -97,7 +97,7 @@ def main
     "  #{tool} -k /etc/portage/package.keywords -o f \t\t\t# save output as file\n"+
     "  #{tool} -k /etc/portage/package.keywords -o d \t\t\t# save output as directory (separate category)\n"+
     "  #{tool} -k /etc/portage/package.keywords -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
-    "  #{tool} or #{tool} --help \t\t\t\t\t# show this help"
+    "  #{tool} --help \t\t\t\t\t\t\t# show this help"
   )
 
   sample.split("\n").each { |line| op.separator line }

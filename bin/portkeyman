@@ -156,6 +156,7 @@ def pkgscan(_options)
   # file function
   if not File.directory?(_options[:keywordfiledir])
     File.readlines(_options[:keywordfiledir]).each do |line|
+      next if line == "\n"
       pkg = line.split(/ /)[0].strip
       keyword = line.split(/ /)[1].strip
 
@@ -197,6 +198,7 @@ def pkgscan(_options)
   if File.directory?(_options[:keywordfiledir])
     Dir[File.join(_options[:keywordfiledir], "*")].each do |files|
       File.readlines(files).each do |line|
+        next if line == "\n"
         pkg = line.split(/ /)[0].strip
         keyword = line.split(/ /)[1].strip
 

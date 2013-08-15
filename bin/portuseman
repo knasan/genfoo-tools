@@ -149,6 +149,7 @@ def pkgscan(_options)
   # file function
   if not File.directory?(_options[:usefiledir])
     File.readlines(_options[:usefiledir]).each do |line|
+      next if line == "\n"
       pkg = line.split(/ /)[0].strip
       use = line.split(/ /)[1].strip
 
@@ -190,6 +191,7 @@ def pkgscan(_options)
   if File.directory?(_options[:usefiledir])
     Dir[File.join(_options[:usefiledir], "*")].each do |files|
       File.readlines(files).each do |line|
+        next if line == "\n"
         pkg = line.split(/ /)[0].strip
         use = line.split(/ /)[1].strip
 

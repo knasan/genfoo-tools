@@ -6,7 +6,7 @@ require 'tempfile'
 require 'tmpdir'
 require 'fileutils'
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 TMPFILE = Tempfile.new("/tmp/packages.use_#{File.basename($0)}")
 
 lc_messages = ENV["LC_MESSAGES"]
@@ -109,9 +109,9 @@ def main
 
   # set logfile for more output informations
   if options[:logfile]
-    @log = Logger.new(options[:logfile], 'daily')
+    @log = Logger.new(options[:logfile])
   else
-    @log = Logger.new(logfile, 'daily')
+    @log = Logger.new(logfile)
   end
 
   if not File.exists?(options[:usefiledir])
@@ -130,7 +130,7 @@ def show_comment(_line, _comment_tmp_file)
     comment = _line
     comment = _line.split(/#/)[1]
     comment = comment.strip unless comment.nil?
-    _comment_tmp_file.syswrite(comment)
+    _comment_tmp_file.puts(comment)
   else
     comment = _line.split(/#/)[1]
     comment = comment.strip unless comment.nil?
@@ -168,7 +168,13 @@ def pkgscan(_options)
         end
       end
 
-      comment = show_comment(line, comment_tmp_file)
+      if installed_pkg_versions.to_s.include?(pkg)
+        @log.info("pkg => #{pkg}, use => #{use}")
+        use = migrate_useflags(installed_pkg_versions, pkg, use)
+      elsif installed_pkg_noversions.to_s.include?(pkg)
+        @log.info("pkg => #{pkg}, use => #{use}")
+        use = migrate_useflags(installed_pkg_noversions, pkg, use)
+      end
 
       if line.start_with?(">")
         installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
@@ -208,6 +214,14 @@ def pkgscan(_options)
           rescue => exc
             @log.fatal(exc)
           end
+        end
+
+        if installed_pkg_versions.to_s.include?(pkg)
+          @log.info("pkg => #{pkg}, use => #{use}")
+          use = migrate_useflags(installed_pkg_versions, pkg, use)
+        elsif installed_pkg_noversions.to_s.include?(pkg)
+          @log.info("pkg => #{pkg}, use => #{use}")
+          use = migrate_useflags(installed_pkg_noversions, pkg, use)
         end
 
         if line.start_with?(">")
@@ -256,11 +270,27 @@ def pkgscan(_options)
   end
 end
 
-def migrate_pkg(_installed_pkg_noversions, _installed_pkg_versions, _not_installed_pkg, _options)
-  migrate_list = {}
-  # migrate all to >=categorie/name-version arch
+def migrate_useflags(_list, _pkg, _use)
+  use = nil
+  _list.each_value do |entry|
+    next if not entry[:pkg].include?(_pkg)
+    @log.info("serch pkg => #{_pkg}, found pkg => #{entry}")
+    use = "#{_use} #{entry[:use]}"
+  end
+  if not use.nil?
+    @log.info("old use => #{_use}, new use => #{use}")
+    return use
+  else
+    @log.info("no migrate useflags - #{_use}")
+    return _use
+  end
+end
 
-  _installed_pkg_noversions.each_pair do |pkg,info|
+def migrate_pkg(_installed_pkg_noversions, _installed_pkg_versions, _not_installed_pkg, _options)
+
+  migrate_list = {}
+
+ _installed_pkg_noversions.each_pair do |pkg,info|
     if info[:comment].nil?
       warning_msg = "don't migrate package #{info[:pkg]}. Installed version: #{pkg} used use: #{info[:use]}"
       migrate_list[pkg] = {:pkg => info[:pkg], :use => info[:use]}

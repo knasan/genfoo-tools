@@ -151,7 +151,7 @@ def pkgscan(_options)
     File.readlines(_options[:usefiledir]).each do |line|
       next if line == "\n"
       pkg = line.split(/ /)[0].strip
-      use = line.split(/ /)[1].strip
+      use = line.split(pkg)[1].strip
 
       tmp_file = File.new(comment_tmp_file,"a")
       comment = show_comment(line, tmp_file)
@@ -193,7 +193,7 @@ def pkgscan(_options)
       File.readlines(files).each do |line|
         next if line == "\n"
         pkg = line.split(/ /)[0].strip
-        use = line.split(/ /)[1].strip
+        use = line.split(pkg)[1].strip
 
         tmp_file = File.new(comment_tmp_file,"a")
         comment = show_comment(line, tmp_file)
@@ -222,7 +222,7 @@ def pkgscan(_options)
             not_installed_pkg[pkg] = {:pkg => pkg, :use => use, :comment => comment}
             next
           end
-          installed_pkg_noversions[pkg_full] = {:pkg => pkg, :use => use, :comment => comment}
+          installed_pkg_noversions[pkg_full] = {:pkg => pkg, :use => use, :commnet => comment}
         end
       end
     end

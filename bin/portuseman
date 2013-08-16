@@ -144,101 +144,62 @@ def pkgscan(_options)
   not_installed_pkg = {}
 
   comment_tmp_file = "/tmp/comments"
-  File.delete(comment_tmp_file) if File.file?(comment_tmp_file)
+  FileUtils.rm_f(comment_tmp_file)
+  comment_tmp_file = File.new(comment_tmp_file, "w")
 
-  # file function
-  if not File.directory?(_options[:usefiledir])
-    File.readlines(_options[:usefiledir]).each do |line|
-      next if line == "\n"
-      pkg = line.split(/ /)[0].strip
-      use = line.split(pkg)[1].strip
-
-      tmp_file = File.new(comment_tmp_file,"a")
-      comment = show_comment(line, tmp_file)
-
-      if comment.nil?
-        File.readlines(comment_tmp_file).each do |comline|
-          next if comline.nil?
-          comment = comline
-        end
-        begin
-          File.delete(comment_tmp_file)
-        rescue => exc
-          @log.fatal(exc)
-        end
+  packages = []
+  if File.directory?(_options[:usefiledir])
+    Dir[File.join(_options[:usefiledir], "*")].each { |file|
+      File.readlines(file).each do |line|
+        next if line.nil?
+        packages << line
       end
-
-      if installed_pkg_versions.to_s.include?(pkg)
-        @log.info("pkg => #{pkg}, use => #{use}")
-        use = migrate_useflags(installed_pkg_versions, pkg, use)
-      elsif installed_pkg_noversions.to_s.include?(pkg)
-        @log.info("pkg => #{pkg}, use => #{use}")
-        use = migrate_useflags(installed_pkg_noversions, pkg, use)
-      end
-
-      if line.start_with?(">")
-        installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
-        next
-      elsif line.start_with?("=")
-        installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
-        next
-      else
-        pkg_full = `qlist -ICv #{pkg} `.strip
-        if pkg_full.empty?
-          not_installed_pkg[pkg] = {:pkg => pkg, :use => use, :comment => comment}
-          next
-        end
-        installed_pkg_noversions[pkg_full] = {:pkg => pkg, :use => use, :commnet => comment}
-      end
-    end
+    }
+  else
+    packages << File.readlines(_options[:usefiledir])
   end
 
-  # directory function
-  if File.directory?(_options[:usefiledir])
-    Dir[File.join(_options[:usefiledir], "*")].each do |files|
-      File.readlines(files).each do |line|
-        next if line == "\n"
-        pkg = line.split(/ /)[0].strip
-        use = line.split(pkg)[1].strip
+  packages.each do |line|
+    next if line == "\n"
+    pkg = line.split(/ /)[0].strip
+    use = line.split(pkg)[1].strip
 
-        tmp_file = File.new(comment_tmp_file,"a")
-        comment = show_comment(line, tmp_file)
+    tmp_file = File.new(comment_tmp_file,"a")
+    comment = show_comment(line, tmp_file)
 
-        if comment.nil?
-          File.readlines(comment_tmp_file).each do |comline|
-            next if comline.nil?
-            comment = comline
-          end
-          begin
-            File.delete(comment_tmp_file)
-          rescue => exc
-            @log.fatal(exc)
-          end
-        end
-
-        if installed_pkg_versions.to_s.include?(pkg)
-          @log.info("pkg => #{pkg}, use => #{use}")
-          use = migrate_useflags(installed_pkg_versions, pkg, use)
-        elsif installed_pkg_noversions.to_s.include?(pkg)
-          @log.info("pkg => #{pkg}, use => #{use}")
-          use = migrate_useflags(installed_pkg_noversions, pkg, use)
-        end
-
-        if line.start_with?(">")
-          installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
-          next
-        elsif line.start_with?("=")
-          installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
-          next
-        else
-          pkg_full = `qlist -ICv #{pkg} `.strip
-          if pkg_full.empty?
-            not_installed_pkg[pkg] = {:pkg => pkg, :use => use, :comment => comment}
-            next
-          end
-          installed_pkg_noversions[pkg_full] = {:pkg => pkg, :use => use, :commnet => comment}
-        end
+    if comment.nil?
+      File.readlines(comment_tmp_file).each do |comline|
+        next if comline.nil?
+        comment = comline
       end
+      begin
+        File.delete(comment_tmp_file)
+      rescue => exc
+        @log.fatal(exc)
+      end
+    end
+
+    if installed_pkg_versions.to_s.include?(pkg)
+      @log.info("pkg => #{pkg}, use => #{use}")
+      use = migrate_useflags(installed_pkg_versions, pkg, use)
+    elsif installed_pkg_noversions.to_s.include?(pkg)
+      @log.info("pkg => #{pkg}, use => #{use}")
+      use = migrate_useflags(installed_pkg_noversions, pkg, use)
+    end
+
+    if line.start_with?(">")
+      installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
+      next
+    elsif line.start_with?("=")
+      installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
+      next
+    else
+      pkg_full = `qlist -ICv #{pkg} `.strip
+      if pkg_full.empty?
+        not_installed_pkg[pkg] = {:pkg => pkg, :use => use, :comment => comment}
+        next
+      end
+      installed_pkg_noversions[pkg_full] = {:pkg => pkg, :use => use, :commnet => comment}
     end
   end
 
@@ -246,7 +207,7 @@ def pkgscan(_options)
 
   # save as file and exit
   if not _options[:output_as] == "dir"
-    newfile = "/tmp/package.use.new"
+    newfile = "/tmp/package.use"
     FileUtils.cp(TMPFILE, newfile)
     info_msg = "new packages.use is saved as File to: #{newfile}"
     @log.info("#{info_msg}")

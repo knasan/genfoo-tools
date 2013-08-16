@@ -1,3 +1,9 @@
+2013-08-16 12:50:03 Sandy Marko Knauer <knamarksan@gmail.com>
+
+portkeyman
+* migration of package.keywords and package.accept_keywords to package.accept_keywords.
+* done: observance of ACCEPT_KEYWORDS - done
+
 2013-08-15 14:31:04 Sandy Marko Knauer <knamarksan@gmail.com>
 
 portkeyman

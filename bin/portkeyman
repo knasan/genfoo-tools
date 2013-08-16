@@ -18,7 +18,7 @@ def main
   op.banner = "#{File.basename($0)} [OPTIONS]"
   op.separator("")
 
-  portage_keywords = "/etc/portage/package.keywords"
+  portage_keywords = "/etc/portage/package.accept_keywords"
 
   options = {
     :keywordfiledir => portage_keywords,
@@ -93,11 +93,11 @@ def main
   tool = File.basename($0)
   sample = (
     "Examples:\n"+
-    "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/package.keyword \t# set logfile to /tmp/#{tool}.log\n"+
-    "  #{tool} -k /etc/portage/package.keywords -o f \t\t\t# save output as file\n"+
-    "  #{tool} -k /etc/portage/package.keywords -o d \t\t\t# save output as directory (separate category)\n"+
-    "  #{tool} -k /etc/portage/package.keywords -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
-    "  #{tool} --help \t\t\t\t\t\t\t# show this help"
+    "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/package.accept_keywords \t# set logfile to /tmp/#{tool}.log\n"+
+    "  #{tool} -k /etc/portage/package.accept_keywords -o f \t\t\t# save output as file\n"+
+    "  #{tool} -k /etc/portage/package.accept_keywords -o d \t\t\t# save output as directory (separate category)\n"+
+    "  #{tool} -k /etc/portage/package.accept_keywords -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
+    "  #{tool} --help \t\t\t\t\t\t\t\t# show this help"
   )
 
   sample.split("\n").each { |line| op.separator line }
@@ -116,9 +116,9 @@ def main
 
   # set logfile for more output informations
   if options[:logfile]
-    @log = Logger.new(options[:logfile], 'daily')
+    @log = Logger.new(options[:logfile])
   else
-    @log = Logger.new(logfile, 'daily')
+    @log = Logger.new(logfile)
   end
 
   if not File.exists?(options[:keywordfiledir])
@@ -137,7 +137,7 @@ def show_comment(_line, _comment_tmp_file)
     comment = _line
     comment = _line.split(/#/)[1]
     comment = comment.strip unless comment.nil?
-    _comment_tmp_file.syswrite(comment)
+    _comment_tmp_file.puts(comment)
   else
     comment = _line.split(/#/)[1]
     comment = comment.strip unless comment.nil?
@@ -151,87 +151,56 @@ def pkgscan(_options)
   not_installed_pkg = {}
 
   comment_tmp_file = "/tmp/comments"
-  File.delete(comment_tmp_file) if File.file?(comment_tmp_file)
+  FileUtils.rm_f(comment_tmp_file)
+  comment_tmp_file = File.new(comment_tmp_file, "w")
 
-  # file function
-  if not File.directory?(_options[:keywordfiledir])
-    File.readlines(_options[:keywordfiledir]).each do |line|
-      next if line == "\n"
-      pkg = line.split(/ /)[0].strip
-      keyword = line.split(/ /)[1].strip
-
-      tmp_file = File.new(comment_tmp_file,"a")
-      comment = show_comment(line, tmp_file)
-
-      if comment.nil?
-        File.readlines(comment_tmp_file).each do |comline|
-          next if comline.nil?
-          comment = comline
-        end
-        begin
-          File.delete(comment_tmp_file)
-        rescue => exc
-          @log.fatal(exc)
-        end
-      end
-
-      comment = show_comment(line, comment_tmp_file)
-
-      if line.start_with?(">")
-        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
-        next
-      elsif line.start_with?("=")
-        installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
-        next
-      else
-        pkg_full = `qlist -ICv #{pkg} `.strip
-        if pkg_full.empty?
-          not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
-          next
-        end
-        installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword, :commnet => comment}
-      end
-    end
-  end
-
-  # directory function
+  keywordline = []
   if File.directory?(_options[:keywordfiledir])
     Dir[File.join(_options[:keywordfiledir], "*")].each do |files|
       File.readlines(files).each do |line|
-        next if line == "\n"
-        pkg = line.split(/ /)[0].strip
-        keyword = line.split(/ /)[1].strip
-
-        tmp_file = File.new(comment_tmp_file,"a")
-        comment = show_comment(line, tmp_file)
-
-        if comment.nil?
-          File.readlines(comment_tmp_file).each do |comline|
-            next if comline.nil?
-            comment = comline
-          end
-          begin
-            File.delete(comment_tmp_file)
-          rescue => exc
-            @log.fatal(exc)
-          end
-        end
-
-        if line.start_with?(">")
-          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
-          next
-        elsif line.start_with?("=")
-          installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
-          next
-        else
-          pkg_full = `qlist -ICv #{pkg} `.strip
-          if pkg_full.empty?
-            not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
-            next
-          end
-          installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword, :comment => comment}
-        end
+        next if line.nil?
+        keywordline << line
       end
+    end
+  else
+    keywordline <<  File.readlines(_options[:keywordfiledir])
+  end
+
+  keywordline.each do |line|
+    next if line == "\n"
+    pkg = line.split(/ /)[0].strip
+    keyword = line.split(/ /)[1].strip
+
+    tmp_file = File.new(comment_tmp_file,"a")
+    comment = show_comment(line, tmp_file)
+
+    if comment.nil?
+      File.readlines(comment_tmp_file).each do |comline|
+        next if comline.nil?
+        comment = comline
+      end
+      begin
+        File.delete(comment_tmp_file)
+      rescue => exc
+        @log.fatal(exc)
+      end
+    end
+
+    comment = show_comment(line, comment_tmp_file)
+
+    if line.start_with?(">")
+      installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
+      next
+    elsif line.start_with?("=")
+      installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
+      next
+    else
+      pkg_full = `qlist -ICv #{pkg} `.strip
+      if pkg_full.empty?
+        not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
+        next
+      end
+      installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword, :commnet => comment}
     end
   end
 
@@ -239,9 +208,9 @@ def pkgscan(_options)
 
   # save as file and exit
   if not _options[:output_as] == "dir"
-    newfile = "/tmp/package.keywords.new"
+    newfile = "/tmp/package.accept_keywords"
     FileUtils.cp(TMPFILE, newfile)
-    info_msg = "new packages.keywords is saved as File to: #{newfile}"
+    info_msg = "new packages.accept_keywords is saved as File to: #{newfile}"
     @log.info("#{info_msg}")
     puts info_msg
     exit
@@ -251,12 +220,12 @@ def pkgscan(_options)
   if _options[:output_as] == "dir"
     result = migrate_to_dir
     if not result
-      error_msg = "unkown error, package.keywords not saved"
+      error_msg = "unkown error, package.accept_keywords not saved"
       @log.error("#{error_msg}")
       puts error_msg
       exit
     end
-    info_msg = "new package.keyword is saved as directory to: /tmp/package.keywords"
+    info_msg = "new package.accept_keywords is saved as directory to: /tmp/package.accept_keywords"
     @log.info("#{info_msg}")
     puts info_msg
     exit
@@ -342,7 +311,7 @@ def migrate_to_dir
   begin
     # create a tmp dir, is exists delete it
     tmpdir = Dir.mktmpdir(File.basename($0))
-    mydir = File.join(tmpdir, "package.keywords")
+    mydir = File.join(tmpdir, "package.accept_keywords")
     FileUtils.mkdir(mydir)
 
     File.readlines(TMPFILE).each do |line|
@@ -355,9 +324,9 @@ def migrate_to_dir
       File.new("#{mydir}/#{catname}","a").syswrite(line)
     end
 
-    FileUtils.rm_rf("/tmp/package.keywords")
+    FileUtils.rm_rf("/tmp/package.accept_keywords")
 
-    FileUtils.cp_r(mydir, "/tmp/package.keywords")
+    FileUtils.cp_r(mydir, "/tmp/package.accept_keywords")
 
     FileUtils.rm_r(tmpdir)
   rescue => exc

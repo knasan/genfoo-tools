@@ -59,7 +59,12 @@ def main
 
   op.on("-o [FILE|DIR]","--output [FILE|DIR]","output as file or directory, default: #{options[:output_as]}") do |args|
     options[:opt] = true
-    arg = args.downcase
+    arg = args.downcase rescue arg = nil
+    if arg.nil?
+      puts "wrong parameters"
+      opts op
+      exit
+    end
 
     if arg == "file" or arg == "f"
       options[:output_as] = "file"
@@ -159,10 +164,11 @@ def pkgscan(_options)
     packages << File.readlines(_options[:usefiledir])
   end
 
-  packages.each do |line|
+  packages.flatten.each do |line|
     next if line == "\n"
     pkg = line.split(/ /)[0].strip
     use = line.split(pkg)[1].strip
+    next if line =~ /#/
 
     tmp_file = File.new(comment_tmp_file,"a")
     comment = show_comment(line, tmp_file)

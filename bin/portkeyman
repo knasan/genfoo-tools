@@ -65,7 +65,12 @@ def main
 
   op.on("-o [FILE|DIR]","--output [FILE|DIR]","output as file or directory, default: #{options[:output_as]}") do |args|
     options[:opt] = true
-    arg = args.downcase
+    arg = args.downcase rescue arg = nil
+    if arg.nil?
+      puts "wrong parameters"
+      puts op
+      exit
+    end
 
     if arg == "file" or arg == "f"
       options[:output_as] = "file"
@@ -166,9 +171,10 @@ def pkgscan(_options)
     keywordline <<  File.readlines(_options[:keywordfiledir])
   end
 
-  keywordline.each do |line|
+  keywordline.flatten.each do |line|
     next if line == "\n"
     pkg = line.split(/ /)[0].strip
+    next if line =~ /#/
     keyword = line.split(/ /)[1].strip
 
     tmp_file = File.new(comment_tmp_file,"a")
@@ -195,7 +201,7 @@ def pkgscan(_options)
       installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
       next
     else
-      pkg_full = `qlist -ICv #{pkg} `.strip
+      pkg_full = "`qlist -ICv #{pkg}`".strip
       if pkg_full.empty?
         not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
         next
@@ -203,7 +209,6 @@ def pkgscan(_options)
       installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword, :commnet => comment}
     end
   end
-
   migrate_pkg(installed_pkg_noversions, installed_pkg_versions, not_installed_pkg, _options)
 
   # save as file and exit

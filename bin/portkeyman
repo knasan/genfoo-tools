@@ -6,11 +6,11 @@ require 'tempfile'
 require 'tmpdir'
 require 'fileutils'
 
-VERSION="0.0.6"
-TMPFILE = Tempfile.new("/tmp/packages.keyword_#{File.basename($0)}")
+PKMVERSION="0.0.7"
+TMPFILE = Tempfile.new("packages.keyword_#{File.basename($0)}")
 
-lc_messages = ENV["LC_MESSAGES"]
-ENV["LC_MASSAGES"] = "en_US"
+# portkeyman not compatible with ruby version 1.8.x
+( puts "Sorry, ruby 1.8.x not supported" ; exit ) if RUBY_VERSION.start_with?("1.8")
 
 def main
   op = OptionParser.new
@@ -90,7 +90,7 @@ def main
 
   op.on("-V","--version","print version and exit") do
     options[:opt] = true
-    puts "#{File.basename($0)} VERSION: #{VERSION}"
+    puts "#{File.basename($0)} VERSION: #{PKMVERSION}"
     exit
   end
 

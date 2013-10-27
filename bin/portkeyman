@@ -201,7 +201,7 @@ def pkgscan(_options)
       installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
       next
     else
-      puts "Suche nach #{pkg}"
+      puts "search for #{pkg}" if _options[:verbose]
       pkg_full = `qlist -ICv #{pkg}`.split("\n")[0] rescue pkg_full == nil
       if pkg_full.nil?
         not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}

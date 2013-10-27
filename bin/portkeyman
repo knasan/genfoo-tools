@@ -6,7 +6,7 @@ require 'tempfile'
 require 'tmpdir'
 require 'fileutils'
 
-PKMVERSION="0.0.7"
+PKMVERSION="0.0.8"
 TMPFILE = Tempfile.new("packages.keyword_#{File.basename($0)}")
 
 # portkeyman not compatible with ruby version 1.8.x
@@ -164,7 +164,7 @@ def pkgscan(_options)
     Dir[File.join(_options[:keywordfiledir], "*")].each do |files|
       File.readlines(files).each do |line|
         next if line.nil?
-        keywordline << line
+        keywordline << line.strip.chomp
       end
     end
   else
@@ -173,9 +173,9 @@ def pkgscan(_options)
 
   keywordline.flatten.each do |line|
     next if line == "\n"
-    pkg = line.split(/ /)[0].strip
+    pkg = line.split(/ /)[0]
     next if line =~ /#/
-    keyword = line.split(/ /)[1].strip
+    keyword = line.split(/ /)[1]
 
     tmp_file = File.new(comment_tmp_file,"a")
     comment = show_comment(line, tmp_file)
@@ -201,14 +201,16 @@ def pkgscan(_options)
       installed_pkg_versions[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
       next
     else
-      pkg_full = "`qlist -ICv #{pkg}`".strip
-      if pkg_full.empty?
+      puts "Suche nach #{pkg}"
+      pkg_full = `qlist -ICv #{pkg}`.split("\n")[0] rescue pkg_full == nil
+      if pkg_full.nil?
         not_installed_pkg[pkg] = {:pkg => pkg, :keyword => keyword, :comment => comment}
         next
       end
       installed_pkg_noversions[pkg_full] = {:pkg => pkg, :keyword => keyword, :commnet => comment}
     end
   end
+
   migrate_pkg(installed_pkg_noversions, installed_pkg_versions, not_installed_pkg, _options)
 
   # save as file and exit
@@ -242,6 +244,7 @@ def migrate_pkg(_installed_pkg_noversions, _installed_pkg_versions, _not_install
   # migrate all to >=categorie/name-version arch
 
   _installed_pkg_noversions.each_pair do |pkg,info|
+    p pkg
     if _options[:pkg_ver_mig]
       if info[:comment].nil?
         info_msg = "Migrate #{pkg} to #{info[:full_name]} #{info[:keyword]}"

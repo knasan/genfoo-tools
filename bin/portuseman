@@ -6,7 +6,7 @@ require 'tempfile'
 require 'tmpdir'
 require 'fileutils'
 
-PUMVERSION = "0.0.3"
+PUMVERSION = "0.0.4"
 TMPFILE = Tempfile.new("packages.use_#{File.basename($0)}")
 
 # portuseman not compatible with ruby version 1.8.x
@@ -200,8 +200,8 @@ def pkgscan(_options)
       installed_pkg_versions[pkg] = {:pkg => pkg, :use => use, :comment => comment}
       next
     else
-      pkg_full = `qlist -ICv #{pkg} `.strip
-      if pkg_full.empty?
+      pkg_full = `qlist -ICv #{pkg}`.split(/\n/)[0] rescue pkg_full == nil
+      if pkg_full.nil?
         not_installed_pkg[pkg] = {:pkg => pkg, :use => use, :comment => comment}
         next
       end

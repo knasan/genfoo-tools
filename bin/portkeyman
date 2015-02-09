@@ -15,8 +15,8 @@ TMPFILE   = Tempfile.new("packages.keyword_#{File.basename($0)}")
 # portkeyman not compatible with ruby version 1.8.x
 (puts 'Sorry, ruby 1.8.x not supported'; exit) if RUBY_VERSION.start_with?('1.8')
 
-@genfooutils = GenfooUtils.new
-@file_or_dir_name = 'package.accept_keywords'
+@@genfooutils = GenfooUtils.new
+@@file_or_dir_name = 'package.accept_keywords'
 
 def main
   op                = OptionParser.new
@@ -24,7 +24,7 @@ def main
   op.banner         = "#{File.basename($0)} [OPTIONS]"
   op.separator('')
 
-  portage_keywords = File.join('/etc/portage/',@file_or_dir_name)
+  portage_keywords = File.join('/etc/portage/',@@file_or_dir_name)
 
   options = {
       :keywordfiledir => portage_keywords,
@@ -37,7 +37,7 @@ def main
       :verbose        => false
   }
 
-  logfile = @genfooutils.set_logfile
+  logfile = @@genfooutils.set_logfile
 
   # default ist nothing to due
   op.on('-d', '--drop', 'remove not installed packages from keywords') do
@@ -73,7 +73,7 @@ def main
       exit
     end
 
-    options = @genfooutils.output_as(arg, options, op)
+    options = @@genfooutils.output_as(arg, options, op)
 
   end
 
@@ -92,10 +92,10 @@ def main
   tool   = File.basename($0)
   sample = (
   "Examples:\n"+
-      "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/#{@file_or_dir_name} \t# set logfile to /tmp/#{tool}.log\n"+
-      "  #{tool} -k /etc/portage/#{@file_or_dir_name} -o f \t\t\t# save output as file\n"+
-      "  #{tool} -k /etc/portage/#{@file_or_dir_name} -o d \t\t\t# save output as directory (separate category)\n"+
-      "  #{tool} -k /etc/portage/#{@file_or_dir_name} -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
+      "  #{tool} -l /tmp/#{tool}.log -k /etc/portage/#{@@file_or_dir_name} \t# set logfile to /tmp/#{tool}.log\n"+
+      "  #{tool} -k /etc/portage/#{@@file_or_dir_name} -o f \t\t\t# save output as file\n"+
+      "  #{tool} -k /etc/portage/#{@@file_or_dir_name} -o d \t\t\t# save output as directory (separate category)\n"+
+      "  #{tool} -k /etc/portage/#{@@file_or_dir_name} -p \t\t\t# convert app-portage/genfoo-tools ~amd64 to >=app-portage/genfoo-tools-9999 ~amd64\n"+
       "  #{tool} --help \t\t\t\t\t\t\t\t# show this help"
   )
 
@@ -113,8 +113,8 @@ def main
     puts "\n#{op}"
   end
 
-  @log = @genfooutils.initialize_logger(options)
-  @genfooutils.check_file_or_directory(options[:keywordfiledir], options, @log)
+  @@log = @@genfooutils.initialize_logger(options)
+  @@genfooutils.check_file_or_directory(options[:keywordfiledir], options, @@log)
 
 end
 
@@ -146,7 +146,7 @@ def pkgscan(_options)
     keyword = line.split(/ /)[1]
 
     tmp_file = File.new(comment_tmp_file, 'a')
-    @comment = @genfooutils.show_comment(line, tmp_file)
+    @comment = @@genfooutils.show_comment(line, tmp_file)
 
     if @comment.nil?
       File.readlines(comment_tmp_file).each do |comline|
@@ -156,11 +156,11 @@ def pkgscan(_options)
       begin
         File.delete(comment_tmp_file)
       rescue => exc
-        @log.fatal(exc)
+        @@log.fatal(exc)
       end
     end
 
-    @comment = @genfooutils.show_comment(line, comment_tmp_file)
+    @comment = @@genfooutils.show_comment(line, comment_tmp_file)
 
     if line.start_with?('>')
       installed_pkg_versions[pkg] = { :pkg => pkg, :keyword => keyword, :comment => @comment }
@@ -182,10 +182,10 @@ def pkgscan(_options)
   migrate_pkg(installed_pkg_noversions, installed_pkg_versions, not_installed_pkg, _options)
 
   # save as file and exit
-  @genfooutils.save_as_file_and_exit(_options, @file_or_dir_name, @log)
+  @@genfooutils.save_as_file_and_exit(_options, @@file_or_dir_name, @@log)
 
   # save as directory
-  @genfooutils.save_as_directory_and_exit(_options, @file_or_dir_name, @log)
+  @@genfooutils.save_as_directory_and_exit(_options, @@file_or_dir_name, @@log)
 end
 
 def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _options)
@@ -200,7 +200,7 @@ def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _o
       else
         info_msg = "Migrate #{pkg} to #{info[:full_name]} #{info[:keyword]} #{info[:comment]}"
       end
-      @log.info("#{info_msg}")
+      @@log.info("#{info_msg}")
       puts info_msg if _options[:verbose]
       if info[:comment].nil?
         migrate_list[pkg] = { :pkg => ">=#{pkg}", :keyword => info[:keyword] }
@@ -216,7 +216,7 @@ def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _o
             "used keyword: #{info[:keyword]} and comment: #{info[:comment]}"
         migrate_list[pkg] = { :pkg => info[:pkg], :keyword => info[:keyword], :comment => "# #{info[:comment]}" }
       end
-      @log.warn("#{warning_msg}")
+      @@log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
     end
   end
@@ -231,7 +231,7 @@ def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _o
         warning_msg       ="ignore not installed package: #{pkg} comment: #{info[:comment]}"
         migrate_list[pkg] = { :pkg => info[:pkg], :keyword => info[:keyword], :comment => "# #{info[:comment]}" }
       end
-      @log.warn("#{warning_msg}")
+      @@log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
     end
   elsif _options[:drop]
@@ -241,7 +241,7 @@ def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _o
       else
         warning_msg = "drop not installed package: #{pkg} comment: #{info[:comment]}"
       end
-      @log.warn("#{warning_msg}")
+      @@log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
     end
   end

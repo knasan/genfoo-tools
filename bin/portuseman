@@ -15,8 +15,8 @@ TMPFILE    = Tempfile.new("packages.use_#{File.basename($0)}")
 # portuseman not compatible with ruby version 1.8.x
 (puts 'Sorry, ruby 1.8.x not supported'; exit) if RUBY_VERSION.start_with?('1.8')
 
-@genfooutils = GenfooUtils.new
-@file_or_dir_name = 'package.use'
+@@genfooutils = GenfooUtils.new
+@@file_or_dir_name = 'package.use'
 
 def main
   op                = OptionParser.new
@@ -24,7 +24,7 @@ def main
   op.banner         = "#{File.basename($0)} [OPTIONS]"
   op.separator('')
 
-  portage_use = File.join('/etc/portage', @file_or_dir_name)
+  portage_use = File.join('/etc/portage', @@file_or_dir_name)
 
   options = {
       :usefiledir  => portage_use,
@@ -37,7 +37,7 @@ def main
       :verbose     => false
   }
 
-  logfile = @genfooutils.set_logfile
+  logfile = @@genfooutils.set_logfile
 
   # default ist nothing to due
   op.on('-d', '--drop', 'remove not installed packages from use file') do
@@ -67,7 +67,7 @@ def main
       exit
     end
 
-    options = @genfooutils.output_as(arg, options, op)
+    options = @@genfooutils.output_as(arg, options, op)
 
   end
 
@@ -86,9 +86,9 @@ def main
   tool   = File.basename($0)
   sample = (
   "Examples:\n"+
-      "  #{tool} -l /tmp/#{tool}.log -u /etc/portage/#{@file_or_dir_name} \t# set logfile to /tmp/#{tool}.log\n"+
-      "  #{tool} -u /etc/portage/#{@file_or_dir_name} -o f \t\t\t\t# save output as file\n"+
-      "  #{tool} -u /etc/portage/#{@file_or_dir_name} -o d \t\t\t\t# save output as directory (separate category)\n"+
+      "  #{tool} -l /tmp/#{tool}.log -u /etc/portage/#{@@file_or_dir_name} \t# set logfile to /tmp/#{tool}.log\n"+
+      "  #{tool} -u /etc/portage/#{@@file_or_dir_name} -o f \t\t\t\t# save output as file\n"+
+      "  #{tool} -u /etc/portage/#{@@file_or_dir_name} -o d \t\t\t\t# save output as directory (separate category)\n"+
       "  #{tool} --help \t\t\t\t\t\t\t# show this help"
   )
 
@@ -106,8 +106,8 @@ def main
     puts "\n#{op}"
   end
 
-  @log = @genfooutils.initialize_logger(options)
-  @genfooutils.check_file_or_directory(options[:usefiledir], options, @log)
+  @@log = @@genfooutils.initialize_logger(options)
+  @@genfooutils.check_file_or_directory(options[:usefiledir], options, @@log)
 
 end
 
@@ -139,7 +139,7 @@ def pkgscan(_options)
     next if line =~ /#/
 
     tmp_file = File.new(comment_tmp_file, 'a')
-    comment  = @genfooutils.show_comment(line, tmp_file)
+    comment  = @@genfooutils.show_comment(line, tmp_file)
 
     if comment.nil?
       File.readlines(comment_tmp_file).each do |comline|
@@ -149,15 +149,15 @@ def pkgscan(_options)
       begin
         File.delete(comment_tmp_file)
       rescue => exc
-        @log.fatal(exc)
+        @@log.fatal(exc)
       end
     end
 
     if installed_pkg_versions.to_s.include?(pkg)
-      @log.info("pkg => #{pkg}, use => #{use}")
+      @@log.info("pkg => #{pkg}, use => #{use}")
       use = migrate_useflags(installed_pkg_versions, pkg, use)
     elsif installed_pkg_noversions.to_s.include?(pkg)
-      @log.info("pkg => #{pkg}, use => #{use}")
+      @@log.info("pkg => #{pkg}, use => #{use}")
       use = migrate_useflags(installed_pkg_noversions, pkg, use)
     end
 
@@ -181,24 +181,24 @@ def pkgscan(_options)
   migrate_pkg(installed_pkg_noversions, installed_pkg_versions, not_installed_pkg, _options)
 
   # save as file and exit
-  @genfooutils.save_as_file_and_exit(_options, @file_or_dir_name, @log)
+  @@genfooutils.save_as_file_and_exit(_options, @@file_or_dir_name, @@log)
 
   # save as directory
-  @genfooutils.save_as_directory_and_exit(_options, @file_or_dir_name, @log)
+  @@genfooutils.save_as_directory_and_exit(_options, @@file_or_dir_name, @@log)
 end
 
 def migrate_useflags(_list, _pkg, _use)
   use = nil
   _list.each_value do |entry|
     next unless entry[:pkg].include?(_pkg)
-    @log.info("serch pkg => #{_pkg}, found pkg => #{entry}")
+    @@log.info("serch pkg => #{_pkg}, found pkg => #{entry}")
     use = "#{_use} #{entry[:use]}"
   end
   if use.nil?
-    @log.info("no migrate useflags - #{_use}")
+    @@log.info("no migrate useflags - #{_use}")
     _use
   else
-    @log.info("old use => #{_use}, new use => #{use}")
+    @@log.info("old use => #{_use}, new use => #{use}")
     use
   end
 end
@@ -215,7 +215,7 @@ def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _o
       warning_msg       = "don't migrate package #{info[:pkg]}. Installed version: #{pkg} used use: #{info[:use]} and comment: #{info[:comment]}"
       migrate_list[pkg] = { :pkg => info[:pkg], :use => info[:use], :comment => "# #{info[:comment]}" }
     end
-    @log.warn("#{warning_msg}")
+    @@log.warn("#{warning_msg}")
     puts warning_msg if _options[:verbose]
   end
 
@@ -229,7 +229,7 @@ def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _o
         warning_msg       ="ignore not installed package: #{pkg} comment: #{info[:comment]}"
         migrate_list[pkg] = { :pkg => info[:pkg], :use => info[:use], :comment => "# #{info[:comment]}" }
       end
-      @log.warn("#{warning_msg}")
+      @@log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
     end
   elsif _options[:drop]
@@ -239,7 +239,7 @@ def migrate_pkg(_installed_pkg_nover, _installed_pkg_ver, _not_installed_pkg, _o
       else
         warning_msg = "drop not installed package: #{pkg} comment: #{info[:comment]}"
       end
-      @log.warn("#{warning_msg}")
+      @@log.warn("#{warning_msg}")
       puts warning_msg if _options[:verbose]
     end
   end

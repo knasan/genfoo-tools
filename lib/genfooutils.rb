@@ -1,23 +1,23 @@
 class GenfooUtils
 
+  def set_logfile
+    # set default log, for user /tmp - for root /var/log
+    if Process.uid == 0
+      @logfile = "/var/log/#{File.basename($0)}.log"
+    else
+      @logfile = "/tmp/#{File.basename($0)}.log"
+    end
+    @logfile
+  end
+
   #set logfile for more output informations
   def initialize_logger(_options)
     if _options[:logfile]
       log = Logger.new(_options[:logfile])
     else
-      log = Logger.new(logfile)
+      log = Logger.new(@logfile)
     end
     log
-  end
-
-  def set_logfile
-    # set default log, for user /tmp - for root /var/log
-    if Process.uid == 0
-      logfile = "/var/log/#{File.basename($0)}.log"
-    else
-      logfile = "/tmp/#{File.basename($0)}.log"
-    end
-    logfile
   end
 
   def output_as(_arg, _options, _op)

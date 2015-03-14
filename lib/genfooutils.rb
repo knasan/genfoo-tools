@@ -7,7 +7,6 @@ class GenfooUtils
     else
       @logfile = "/tmp/#{File.basename($0)}.log"
     end
-    @logfile
   end
 
   #set logfile for more output informations
@@ -34,7 +33,7 @@ class GenfooUtils
   end
 
   def check_file_or_directory(_file, _options, _log)
-    if File.exists?(_file)
+    if File.exist?(_file)
       pkgscan(_options)
     else
       error_msg = "failure: #{_file} no file or directory"

@@ -88,7 +88,7 @@ class GenfooUtils
     unless _options[:output_as] == 'dir'
       newfile = File.join('/tmp/', _file)
       FileUtils.cp(TMPFILE, newfile)
-      info_msg = "new packages.use is saved as File to: #{newfile}"
+      info_msg = "saved as File to: #{newfile}"
       _log.info("#{info_msg}")
       puts info_msg
       exit
